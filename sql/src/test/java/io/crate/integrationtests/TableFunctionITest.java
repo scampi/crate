@@ -22,6 +22,7 @@
 
 package io.crate.integrationtests;
 
+import io.crate.testing.UseJdbc;
 import org.junit.Test;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.$;
@@ -53,6 +54,7 @@ public class TableFunctionITest extends SQLTransportIntegrationTest {
     }
 
     @Test
+    @UseJdbc(1) // otherwise, missing type information
     public void testInsertIntoFromSelectUnnest() {
         execute("create table t (id int primary key, name string) with (number_of_replicas = 0)");
         ensureYellow();

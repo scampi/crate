@@ -100,6 +100,7 @@ import io.crate.types.ArrayType;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
 import io.crate.types.ObjectType;
+import io.crate.types.UndefinedType;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Singleton;
@@ -140,6 +141,10 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
                                            CoordinatorTxnCtx coordinatorTxnCtx,
                                            ParamTypeHints paramTypeHints) {
         return analyze(query, new StatementAnalysisContext(paramTypeHints, Operation.READ, coordinatorTxnCtx));
+    }
+
+    public AnalyzedRelation analyzeUnbound(Query query, StatementAnalysisContext analysisContext) {
+        return analyze(query, analysisContext);
     }
 
     public AnalyzedRelation analyze(Node node,
@@ -775,7 +780,13 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
 
         ArrayList<Symbol> arrays = new ArrayList<>(columns.size());
         for (int c = 0; c < numColumns; c++) {
-            DataType<?> targetType = targetTypes.get(c);
+            DataType<?> targetType;
+            if (ArrayType.unnest(targetTypes.get(c)).id() == UndefinedType.ID &&
+                context.parentOutputColumns().size() > c) {
+                targetType = context.parentOutputColumns().get(c).valueType();
+            } else {
+                targetType = targetTypes.get(c);
+            }
             ArrayType<?> arrayType = new ArrayType<>(targetType);
             List<Symbol> columnValues = Lists2.map(columns.get(c), s -> s.cast(targetType));
             arrays.add(new Function(

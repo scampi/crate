@@ -24,6 +24,7 @@ package io.crate.analyze.relations;
 import io.crate.action.sql.SessionContext;
 import io.crate.expression.symbol.Symbol;
 import io.crate.metadata.CoordinatorTxnCtx;
+import io.crate.metadata.Reference;
 import io.crate.metadata.table.Operation;
 import io.crate.sql.tree.ParameterExpression;
 
@@ -35,15 +36,24 @@ public class StatementAnalysisContext {
 
     private final Operation currentOperation;
     private final CoordinatorTxnCtx coordinatorTxnCtx;
+    private final List<Reference> parentOutputColumns;
     private final Function<ParameterExpression, Symbol> convertParamFunction;
     private final List<RelationAnalysisContext> lastRelationContextQueue = new ArrayList<>();
 
     public StatementAnalysisContext(Function<ParameterExpression, Symbol> convertParamFunction,
                                     Operation currentOperation,
-                                    CoordinatorTxnCtx coordinatorTxnCtx) {
+                                    CoordinatorTxnCtx coordinatorTxnCtx,
+                                    List<Reference> parentOutputColumns) {
         this.convertParamFunction = convertParamFunction;
         this.currentOperation = currentOperation;
         this.coordinatorTxnCtx = coordinatorTxnCtx;
+        this.parentOutputColumns = parentOutputColumns;
+    }
+
+    public StatementAnalysisContext(Function<ParameterExpression, Symbol> convertParamFunction,
+                                    Operation currentOperation,
+                                    CoordinatorTxnCtx coordinatorTxnCtx) {
+        this(convertParamFunction, currentOperation, coordinatorTxnCtx, List.of());
     }
 
     public CoordinatorTxnCtx transactionContext() {
@@ -89,5 +99,9 @@ public class StatementAnalysisContext {
 
     public Function<ParameterExpression,Symbol> convertParamFunction() {
         return convertParamFunction;
+    }
+
+    public List<Reference> parentOutputColumns() {
+        return parentOutputColumns;
     }
 }
