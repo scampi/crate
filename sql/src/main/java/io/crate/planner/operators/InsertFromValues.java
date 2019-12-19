@@ -62,7 +62,6 @@ import io.crate.expression.symbol.SelectSymbol;
 import io.crate.expression.symbol.Symbol;
 import io.crate.metadata.IndexParts;
 import io.crate.metadata.Reference;
-import io.crate.metadata.RelationName;
 import io.crate.metadata.doc.DocTableInfo;
 import io.crate.metadata.table.Operation;
 import io.crate.metadata.tablefunctions.TableFunctionImplementation;
@@ -130,9 +129,7 @@ public class InsertFromValues implements LogicalPlan {
                         SubQueryResults subQueryResults) {
         DocTableInfo tableInfo = dependencies
             .schemas()
-            .getTableInfo(
-                RelationName.fromIndexName(writerProjection.tableIdent().fqn()),
-                Operation.INSERT);
+            .getTableInfo(writerProjection.tableIdent(), Operation.INSERT);
 
         InputFactory inputFactory = new InputFactory(dependencies.functions());
         InputFactory.Context<CollectExpression<Row, ?>> context =
@@ -141,6 +138,7 @@ public class InsertFromValues implements LogicalPlan {
         var allColumnSymbols = InputColumns.create(
             writerProjection.allTargetColumns(),
             new InputColumns.SourceSymbols(writerProjection.allTargetColumns()));
+
         ArrayList<Input<?>> insertInputs = new ArrayList<>(allColumnSymbols.size());
         for (Symbol symbol : allColumnSymbols) {
             insertInputs.add(context.add(symbol));
@@ -214,10 +212,10 @@ public class InsertFromValues implements LogicalPlan {
         for (Row row : rows) {
             grouper.accept(shardedRequests, row);
 
-            validatePrimaryKeyInputs(primaryKeyInputs);
-            validatePrimaryClusterByInputs(clusterByInput);
             try {
-                validateSource(
+                checkPrimaryKeyValuesNotNull(primaryKeyInputs);
+                checkClusterByValueNotNull(clusterByInput);
+                checkConstraintsOnGeneratedSource(
                     row.materialize(),
                     indexNameResolver.get(),
                     tableInfo,
@@ -260,9 +258,7 @@ public class InsertFromValues implements LogicalPlan {
                                                      SubQueryResults subQueryResults) {
         DocTableInfo tableInfo = dependencies
             .schemas()
-            .getTableInfo(
-                RelationName.fromIndexName(writerProjection.tableIdent().fqn()),
-                Operation.INSERT);
+            .getTableInfo(writerProjection.tableIdent(), Operation.INSERT);
 
         String[] updateColumnNames;
         Assignments assignments;
@@ -281,6 +277,7 @@ public class InsertFromValues implements LogicalPlan {
         var allColumnSymbols = InputColumns.create(
             writerProjection.allTargetColumns(),
             new InputColumns.SourceSymbols(writerProjection.allTargetColumns()));
+
         ArrayList<Input<?>> insertInputs = new ArrayList<>(allColumnSymbols.size());
         for (Symbol symbol : allColumnSymbols) {
             insertInputs.add(context.add(symbol));
@@ -354,10 +351,10 @@ public class InsertFromValues implements LogicalPlan {
                 Row row = rows.next();
                 grouper.accept(shardedRequests, row);
 
-                validatePrimaryKeyInputs(primaryKeyInputs);
-                validatePrimaryClusterByInputs(clusterByInput);
                 try {
-                    validateSource(
+                    checkPrimaryKeyValuesNotNull(primaryKeyInputs);
+                    checkClusterByValueNotNull(clusterByInput);
+                    checkConstraintsOnGeneratedSource(
                         row.materialize(),
                         indexNameResolver.get(),
                         tableInfo,
@@ -433,7 +430,7 @@ public class InsertFromValues implements LogicalPlan {
             true);
     }
 
-    private static void validatePrimaryKeyInputs(ArrayList<Input<?>> primaryKeyInputs) {
+    private static void checkPrimaryKeyValuesNotNull(ArrayList<Input<?>> primaryKeyInputs) {
         for (var primaryKey : primaryKeyInputs) {
             if (primaryKey.value() == null) {
                 throw new IllegalArgumentException("Primary key value must not be NULL");
@@ -441,17 +438,17 @@ public class InsertFromValues implements LogicalPlan {
         }
     }
 
-    private static void validatePrimaryClusterByInputs(@Nullable Input<?> clusterByInput) {
+    private static void checkClusterByValueNotNull(@Nullable Input<?> clusterByInput) {
         if (clusterByInput != null && clusterByInput.value() == null) {
             throw new IllegalArgumentException("Clustered by value must not be NULL");
         }
     }
 
-    private void validateSource(Object[] cells,
-                                String indexName,
-                                DocTableInfo tableInfo,
-                                PlannerContext plannerContext,
-                                HashMap<String, InsertSourceFromCells> validatorsCache) throws Throwable {
+    private void checkConstraintsOnGeneratedSource(Object[] cells,
+                                                   String indexName,
+                                                   DocTableInfo tableInfo,
+                                                   PlannerContext plannerContext,
+                                                   HashMap<String, InsertSourceFromCells> validatorsCache) throws Throwable {
         var validator = validatorsCache.computeIfAbsent(
             indexName,
             index -> new InsertSourceFromCells(
@@ -460,8 +457,7 @@ public class InsertFromValues implements LogicalPlan {
                 tableInfo,
                 index,
                 GeneratedColumns.Validation.VALUE_MATCH,
-                writerProjection.allTargetColumns(),
-                true));
+                writerProjection.allTargetColumns()));
         validator.generateSourceAndCheckConstraints(cells);
     }
 
@@ -536,7 +532,7 @@ public class InsertFromValues implements LogicalPlan {
     }
 
     private static <TReq extends ShardRequest<TReq, TItem>, TItem extends ShardRequest.Item>
-    Map<ShardLocation, TReq> resolveAndGroupShardRequests(ShardedRequests<TReq, TItem> shardedRequests,
+        Map<ShardLocation, TReq> resolveAndGroupShardRequests(ShardedRequests<TReq, TItem> shardedRequests,
                                                           ClusterService clusterService) {
         var itemsByMissingIndex = shardedRequests.itemsByMissingIndex().entrySet().iterator();
         while (itemsByMissingIndex.hasNext()) {

@@ -135,7 +135,10 @@ public class InsertFromSubQueryAnalyzedStatement implements AnalyzedStatement {
                 Reference reference = defaultExpressionColumns.get(column);
                 if (reference != null) {
                     symbol = InputColumns.create(
-                        requireNonNull(reference.defaultExpression()), sourceSymbols);
+                        requireNonNull(
+                            reference.defaultExpression(),
+                            "Column " + column + " must contain a default expression"),
+                        sourceSymbols);
                 } else {
                     GeneratedReference generatedRef = generatedColumns.get(column);
                     if (generatedRef == null) {

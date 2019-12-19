@@ -24,8 +24,6 @@ package io.crate.integrationtests;
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import io.crate.action.sql.SQLActionException;
 import io.crate.exceptions.VersioninigValidationException;
-import io.crate.metadata.PartitionName;
-import io.crate.metadata.RelationName;
 import io.crate.testing.SQLResponse;
 import io.crate.testing.UseJdbc;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -35,7 +33,6 @@ import org.junit.Test;
 import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
 import org.locationtech.spatial4j.shape.impl.PointImpl;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -185,11 +182,11 @@ public class InsertIntoIntegrationTest extends SQLTransportIntegrationTest {
     }
 
     @Test
-    public void testInsertBadIpAdress() throws Exception {
+    public void testInsertBadIPAddress() throws Exception {
         execute("create table t (i ip) with (number_of_replicas=0)");
         ensureYellow();
         expectedException.expect(SQLActionException.class);
-        expectedException.expectMessage("Invalid value '192.168.1.500' for type 'ip'");
+        expectedException.expectMessage("Cannot cast '192.168.1.500' to type ip");
         execute("insert into t (i) values ('192.168.1.2'), ('192.168.1.3'),('192.168.1.500')");
     }
 

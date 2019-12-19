@@ -80,8 +80,6 @@ import static org.elasticsearch.index.mapper.TypeParsers.DOC_VALUES;
 
 public class DocIndexMetaData {
 
-    public static final String ID = "_id";
-
     private static final String SETTING_CLOSED = "closed";
 
     private final Map<String, Object> mappingMap;
@@ -534,7 +532,7 @@ public class DocIndexMetaData {
             Map<String, Object> metaMap = Maps.get(mappingMap, "_meta");
             if (metaMap != null) {
                 String routingPath = (String) metaMap.get("routing");
-                if (routingPath != null && !routingPath.equals(ID)) {
+                if (routingPath != null && !routingPath.equals(DocSysColumns.Names.ID)) {
                     return ColumnIdent.fromPath(routingPath);
                 }
             }

@@ -276,10 +276,17 @@ public class Session implements AutoCloseable {
             throw t;
         }
 
-        AnalyzedStatement analyzedStatement = analyzer.unboundAnalyze(
-            preparedStmt.parsedStatement(),
-            sessionContext,
-            preparedStmt.paramTypes());
+        var unboundStatement = preparedStmt.unboundStatement();
+        AnalyzedStatement analyzedStatement;
+        if (unboundStatement == null) {
+            analyzedStatement = analyzer.unboundAnalyze(
+                preparedStmt.parsedStatement(),
+                sessionContext,
+                preparedStmt.paramTypes());
+        } else {
+            analyzedStatement = unboundStatement;
+        }
+
         Portal portal = new Portal(
             portalName,
             preparedStmt,
@@ -462,13 +469,20 @@ public class Session implements AutoCloseable {
             0,
             null);
 
-        var analyzedStatement = analyzer.unboundAnalyze(
-            statement,
-            sessionContext,
-            ParamTypeHints.EMPTY);
+        PreparedStmt firstPreparedStatement = toExec.get(0).portal().preparedStmt();
+
+        var unboundStatement = firstPreparedStatement.unboundStatement();
+        AnalyzedStatement analyzedStatement;
+        if (unboundStatement == null) {
+            analyzedStatement = analyzer.unboundAnalyze(
+                statement,
+                sessionContext,
+                firstPreparedStatement.paramTypes());
+        } else {
+            analyzedStatement = unboundStatement;
+        }
 
         Plan plan;
-        PreparedStmt firstPreparedStatement = toExec.get(0).portal().preparedStmt();
         try {
             plan = planner.plan(analyzedStatement, plannerContext);
         } catch (Throwable t) {
@@ -476,6 +490,7 @@ public class Session implements AutoCloseable {
                 jobId, firstPreparedStatement.rawStatement(), SQLExceptions.messageOf(t), sessionContext.user());
             throw t;
         }
+
         jobsLogs.logExecutionStart(
             jobId,
             firstPreparedStatement.rawStatement(),

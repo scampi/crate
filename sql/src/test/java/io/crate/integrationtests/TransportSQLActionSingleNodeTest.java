@@ -170,7 +170,6 @@ public class TransportSQLActionSingleNodeTest extends SQLTransportIntegrationTes
                 new Object[]{listWithNull},
                 new Object[]{List.of(1, 2)},
             });
-        refresh();
         assertThat(rowCounts[0], is(1L));
         assertThat(rowCounts[1], is(1L));
 
