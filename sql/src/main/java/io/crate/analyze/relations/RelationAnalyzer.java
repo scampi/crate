@@ -51,12 +51,15 @@ import io.crate.expression.symbol.Aggregations;
 import io.crate.expression.symbol.Field;
 import io.crate.expression.symbol.FieldReplacer;
 import io.crate.expression.symbol.Function;
+import io.crate.expression.symbol.FunctionCopyVisitor;
 import io.crate.expression.symbol.Literal;
+import io.crate.expression.symbol.ParameterSymbol;
 import io.crate.expression.symbol.Symbol;
 import io.crate.expression.symbol.SymbolType;
 import io.crate.expression.symbol.Symbols;
 import io.crate.expression.symbol.format.SymbolPrinter;
 import io.crate.expression.tablefunctions.TableFunctionFactory;
+import io.crate.expression.tablefunctions.UnnestFunction;
 import io.crate.expression.tablefunctions.ValuesFunction;
 import io.crate.metadata.CoordinatorTxnCtx;
 import io.crate.metadata.FunctionIdent;
@@ -100,7 +103,6 @@ import io.crate.types.ArrayType;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
 import io.crate.types.ObjectType;
-import io.crate.types.UndefinedType;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Singleton;
@@ -709,6 +711,13 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
         }
         Function function = (Function) symbol;
         FunctionIdent ident = function.info().ident();
+
+        if (ident.name().equals(UnnestFunction.NAME)) {
+            function = (Function) UnnestFunctionParameterArgumentTypeReplacer.replace(
+                function,
+                statementContext.parentOutputColumns());
+        }
+
         FunctionImplementation functionImplementation = functions.getQualified(ident);
         TableFunctionImplementation tableFunction = TableFunctionFactory.from(functionImplementation);
         TableInfo tableInfo = tableFunction.createTableInfo();
@@ -717,6 +726,29 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
         TableRelation tableRelation = new TableFunctionRelation(tableInfo, tableFunction, function, qualifiedName);
         context.addSourceRelation(qualifiedName, tableRelation);
         return tableRelation;
+    }
+
+    public static final class UnnestFunctionParameterArgumentTypeReplacer
+        extends FunctionCopyVisitor<List<? extends Symbol>> {
+
+        private static final UnnestFunctionParameterArgumentTypeReplacer INSTANCE
+            = new UnnestFunctionParameterArgumentTypeReplacer();
+
+        public static Symbol replace(Function func, List<? extends Symbol> context) {
+            return INSTANCE.processAndMaybeCopy(func, context);
+        }
+
+        @Override
+        public Symbol visitParameterSymbol(ParameterSymbol parameterSymbol, List<? extends Symbol> columns) {
+            DataType<?> dataType = parameterSymbol.valueType();
+            int idx = parameterSymbol.index();
+            if (ArrayType.unnest(dataType).id() == DataTypes.UNDEFINED.id() && columns.size() > idx) {
+                return new ParameterSymbol(
+                    parameterSymbol.index(),
+                    new ArrayType<>(columns.get(idx).valueType()));
+            }
+            return parameterSymbol;
+        }
     }
 
     @Override
@@ -756,7 +788,12 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
         ArrayList<DataType<?>> targetTypes = new ArrayList<>(numColumns);
         for (int c = 0; c < numColumns; c++) {
             ArrayList<Symbol> columnValues = new ArrayList<>();
-            DataType<?> targetType = DataTypes.UNDEFINED;
+            DataType<?> targetType;
+            if (context.parentOutputColumns().size() > c) {
+                targetType = context.parentOutputColumns().get(c).valueType();
+            } else {
+                targetType = DataTypes.UNDEFINED;
+            }
             for (int r = 0; r < rows.size(); r++) {
                 List<Expression> row = rows.get(r).values();
                 if (row.size() != numColumns) {
@@ -780,13 +817,7 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
 
         ArrayList<Symbol> arrays = new ArrayList<>(columns.size());
         for (int c = 0; c < numColumns; c++) {
-            DataType<?> targetType;
-            if (ArrayType.unnest(targetTypes.get(c)).id() == UndefinedType.ID &&
-                context.parentOutputColumns().size() > c) {
-                targetType = context.parentOutputColumns().get(c).valueType();
-            } else {
-                targetType = targetTypes.get(c);
-            }
+            DataType<?> targetType = targetTypes.get(c);
             ArrayType<?> arrayType = new ArrayType<>(targetType);
             List<Symbol> columnValues = Lists2.map(columns.get(c), s -> s.cast(targetType));
             arrays.add(new Function(

@@ -22,8 +22,9 @@
 
 package io.crate.integrationtests;
 
-import io.crate.testing.UseJdbc;
 import org.junit.Test;
+
+import java.util.List;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.$;
 import static io.crate.testing.TestingHelpers.printedTable;
@@ -54,12 +55,11 @@ public class TableFunctionITest extends SQLTransportIntegrationTest {
     }
 
     @Test
-    @UseJdbc(1) // otherwise, missing type information
     public void testInsertIntoFromSelectUnnest() {
         execute("create table t (id int primary key, name string) with (number_of_replicas = 0)");
         ensureYellow();
 
-        Object[] args = $($(1, 2), $("Marvin", "Trillian")); // non-bulk request
+        Object[] args = $(List.of(1, 2), List.of("Marvin", "Trillian")); // non-bulk request
         execute("insert into t (select * from unnest(?, ?))", args);
         execute("refresh table t");
 
