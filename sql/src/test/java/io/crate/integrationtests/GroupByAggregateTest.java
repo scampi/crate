@@ -1270,4 +1270,38 @@ public class GroupByAggregateTest extends SQLTransportIntegrationTest {
                         "NULL| []\n")
         );
     }
+<<<<<<< HEAD
+=======
+
+    @Test
+    public void test_optimized_topn_distinct_returns_2_unique_items() throws Throwable {
+        execute("create table tbl (id int primary key)");
+        Object[][] ids = new Object[100][];
+        for (int i = 0; i < ids.length; i++) {
+            ids[i] = new Object[] { i };
+        }
+        execute("insert into tbl (id) values (?)", ids);
+        execute("refresh table tbl");
+        execute("analyze");
+        execute("explain select distinct id from tbl limit 2");
+
+        Map explainOutput = (Map) response.rows()[0][0];
+        String explain = Strings.toString(XContentBuilder.builder(JsonXContent.jsonXContent).value(explainOutput));
+        assertThat(explain, Matchers.containsString("{\"type\":\"TOPN_DISTINCT\"}"));
+        execute("select distinct id from tbl limit 2");
+        assertThat(response.rowCount(), is(2L));
+        Object firstId = response.rows()[0][0];
+        Object secondId = response.rows()[1][0];
+        assertThat(firstId, not(is(secondId)));
+    }
+
+    @Test
+    public void test_group_by_on_subscript_on_object_of_sub_relation() {
+        execute("create table tbl (obj object as (x int))");
+        execute("insert into tbl (obj) values ({x=10})");
+        execute("refresh table tbl");
+        execute("select obj['x'] from (select obj from tbl) as t group by obj['x']");
+        assertThat(printedTable(response.rows()), Is.is("10\n"));
+    }
+>>>>>>> b0224f2a3a... Fix subscript handling on top of other relations
 }

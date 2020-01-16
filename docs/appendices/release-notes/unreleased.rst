@@ -46,6 +46,15 @@ None
 Fixes
 =====
 
+<<<<<<< HEAD
+=======
+- Fixed an issue that caused subscript expressions on top of child relations in
+  which an object column is selected to fail.
+
+- Fixed an issue in :ref:`ref-values` that would not allow combining expressions
+  that can be explicitly casted or `NULL` literals in the same column.
+
+>>>>>>> b0224f2a3a... Fix subscript handling on top of other relations
 - Fixed a `ClassCastException` that occurred when querying certain columns from
   ``information_schema.tables``, ``sys.jobs_log`` or ``sys.jobs_metrics`` with
   a client connected via PostgreSQL wire protocol.
