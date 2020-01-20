@@ -21,11 +21,13 @@
 
 package io.crate.integrationtests;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import io.crate.action.sql.SQLActionException;
 import io.crate.exceptions.VersioninigValidationException;
 import io.crate.testing.TestingHelpers;
 import io.crate.testing.UseJdbc;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -41,6 +43,7 @@ import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 
 
+@ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0, supportsDedicatedMasters = false)
 public class UpdateIntegrationTest extends SQLTransportIntegrationTest {
 
     private Setup setup = new Setup(sqlExecutor);
@@ -1000,5 +1003,22 @@ public class UpdateIntegrationTest extends SQLTransportIntegrationTest {
         assertThat(response.rows()[1][0], is(1));
         assertThat(response.rows()[1][1], is(3L));
         assertThat(response.rows()[1][2], is("updated"));
+    }
+
+    @Test
+    @Repeat(iterations = 5)
+    public void test_update_sys_tables_returning_count() throws Exception {
+        execute("update sys.node_checks set acknowledged = true where id = 1");
+        assertThat((response.rowCount()), is(2L));
+    }
+
+    @Test
+    public void test_update_sys_tables_returning_values() throws Exception {
+        execute("update sys.node_checks set acknowledged = true where id = 1 returning acknowledged");
+
+        assertThat((response.rowCount()), is(2L));
+        assertThat((response.cols()[0]), is("acknowledged"));
+        assertThat(response.rows()[0][0], is(true));
+        assertThat(response.rows()[1][0], is(true));
     }
 }

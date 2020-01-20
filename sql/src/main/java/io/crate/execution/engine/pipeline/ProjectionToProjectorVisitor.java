@@ -35,6 +35,7 @@ import io.crate.data.Row;
 import io.crate.execution.TransportActionProvider;
 import io.crate.execution.dml.ShardResponse;
 import io.crate.execution.dml.SysUpdateProjector;
+import io.crate.execution.dml.SysUpdateResultSetProjector;
 import io.crate.execution.dml.delete.ShardDeleteRequest;
 import io.crate.execution.dml.upsert.ShardUpsertRequest;
 import io.crate.execution.dsl.projection.AggregationProjection;
@@ -627,8 +628,13 @@ public class ProjectionToProjectorVisitor
         SysRowUpdater<?> rowUpdater = sysUpdaterGetter.apply(relationName);
         assert readCtx != null : "readCtx must not be null";
         assert rowUpdater != null : "row updater needs to exist";
-        Consumer<Object> rowWriter = rowUpdater.newRowWriter(assignmentCols, valueInputs, readCtx.expressions());
-        return new SysUpdateProjector(rowWriter);
+        Function<Object, List<Object>> rowWriter = rowUpdater.newRowWriter(assignmentCols, valueInputs, readCtx.expressions());
+
+        if (projection.returnValues() == null) {
+            return new SysUpdateProjector(rowWriter);
+        } else {
+            return new SysUpdateResultSetProjector(rowWriter);
+        }
     }
 
     @Override

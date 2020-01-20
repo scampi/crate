@@ -36,13 +36,18 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 
 @Singleton
 public class SysNodeChecks implements SysRowUpdater<SysNodeCheck>, Iterable<SysNodeCheck> {
 
     private final Map<String, SysNodeCheck> checks;
-    private static final BiConsumer<SysNodeCheck, Input<?>> ACK_WRITER =
-        (row, input) -> row.acknowledged((Boolean) input.value());
+    private static final  BiFunction<SysNodeCheck, Input<?>, Object> ACK_WRITER =
+        (row, input) -> {
+            Boolean value = (Boolean) input.value();
+            row.acknowledged(value);
+            return value;
+        };
 
     @Inject
     public SysNodeChecks(Map<Integer, SysNodeCheck> checks, Discovery discovery, ClusterService clusterService) {
@@ -66,7 +71,7 @@ public class SysNodeChecks implements SysRowUpdater<SysNodeCheck>, Iterable<SysN
     }
 
     @Override
-    public BiConsumer<SysNodeCheck, Input<?>> getWriter(ColumnIdent ci) {
+    public BiFunction<SysNodeCheck, Input<?>, Object> getWriter(ColumnIdent ci) {
         if (SysNodeChecksTableInfo.Columns.ACKNOWLEDGED.equals(ci)) {
             return ACK_WRITER;
         }

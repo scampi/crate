@@ -27,11 +27,12 @@ import io.crate.metadata.ColumnIdent;
 import io.crate.execution.engine.collect.NestableCollectExpression;
 import io.crate.execution.engine.collect.CollectExpression;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -58,7 +59,7 @@ public interface SysRowUpdater<TRow> {
      * @param ci the column ident of the column that should be written to.
      * @return a consumer which takes a row object and an input as value
      */
-    BiConsumer<TRow, Input<?>> getWriter(ColumnIdent ci);
+    BiFunction<TRow, Input<?>, Object> getWriter(ColumnIdent ci);
 
     /**
      * Returns a new row writer which allows for updating multiple columns at once.
@@ -72,9 +73,11 @@ public interface SysRowUpdater<TRow> {
      * @param expressions a list of row based expressions where {@link CollectExpression#setNextRow(TRow)} will be called.
      * @return a consumer which writes the values upon its invocation
      */
-    default Consumer<Object> newRowWriter(List<ColumnIdent> idents, List<Input<?>> values, Collection<NestableCollectExpression<?, ?>> expressions) {
+    default Function<Object, List<Object>> newRowWriter(List<ColumnIdent> idents,
+                                                              List<Input<?>> values,
+                                                              Collection<NestableCollectExpression<?, ?>> expressions) {
         assert idents.size() == values.size() : "the number of idents needs to match the number of values";
-        List<BiConsumer<TRow, Input<?>>> writers = idents.stream().map(this::getWriter).collect(Collectors.toList());
+        List<BiFunction<TRow, Input<?>, Object>> writers = idents.stream().map(this::getWriter).collect(Collectors.toList());
         return id -> {
             TRow row = getRow(id);
             Iterator<Input<?>> iter = values.iterator();
@@ -82,9 +85,11 @@ public interface SysRowUpdater<TRow> {
                 //noinspection unchecked
                 ((CollectExpression<TRow, ?>) expression).setNextRow(row);
             }
-            for (BiConsumer<TRow, Input<?>> writer : writers) {
-                writer.accept(row, iter.next());
+            ArrayList<Object> result = new ArrayList<>();
+            for (BiFunction<TRow, Input<?>, Object> writer : writers) {
+                result.add(writer.apply(row, iter.next()));
             }
+            return result;
         };
     }
 }

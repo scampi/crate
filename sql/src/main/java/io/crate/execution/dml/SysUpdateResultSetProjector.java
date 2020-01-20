@@ -22,40 +22,44 @@
 
 package io.crate.execution.dml;
 
+import io.crate.common.collections.Lists2;
 import io.crate.data.BatchIterator;
 import io.crate.data.CollectingBatchIterator;
 import io.crate.data.Projector;
 import io.crate.data.Row;
-import io.crate.data.Row1;
+import io.crate.data.RowN;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collector;
 
-public class SysUpdateProjector implements Projector {
+public class SysUpdateResultSetProjector implements Projector {
 
     private final Function<Object, List<Object>> rowWriter;
+//    private final Symbol[] returnValues;
 
-    public SysUpdateProjector(Function<Object, List<Object>> rowWriter) {
+    public SysUpdateResultSetProjector(Function<Object, List<Object>> rowWriter) {
         this.rowWriter = rowWriter;
     }
 
     @Override
     public BatchIterator<Row> apply(BatchIterator<Row> batchIterator) {
-        return CollectingBatchIterator.newInstance(batchIterator,
-            Collector.of(
-                () -> new State(rowWriter),
-                (state, row) -> {
-                    Object t = row.get(0);
-                    state.rowWriter.apply(t);
-                    state.rowCount++;
-                },
-                (state1, state2) -> {
-                    throw new UnsupportedOperationException("Combine not supported");
-                },
-                state -> Collections.singletonList(new Row1(state.rowCount))
-            ));
+        return CollectingBatchIterator
+            .newInstance(batchIterator,
+                         Collector.of(
+                             () -> new State(rowWriter),
+                             (state, row) -> {
+
+                                 List<Object> results = state.rowWriter.apply(row.get(0));
+                                 state.resultRows.add(results);
+                             },
+                             (state1, state2) -> {
+                                 throw new UnsupportedOperationException(
+                                     "Combine not supported");
+                             },
+                             state -> Lists2.map(state.resultRows, x ->  new RowN(x.toArray(new Object[]{}))
+                         )));
     }
 
     @Override
@@ -65,10 +69,11 @@ public class SysUpdateProjector implements Projector {
 
     private static class State {
         final Function<Object, List<Object>> rowWriter;
-        long rowCount = 0;
+        final List<List<Object>> resultRows = new ArrayList<>();
 
         State(Function<Object, List<Object>> rowWriter) {
             this.rowWriter = rowWriter;
         }
     }
 }
+
