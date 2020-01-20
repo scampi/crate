@@ -52,7 +52,7 @@ None
 Changes
 =======
 
-None
+- Added the :ref:`version() <version>` system information function.
 
 Fixes
 =====
